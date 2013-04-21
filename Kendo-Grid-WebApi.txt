@@ -1,0 +1,453 @@
+Kendo GRID CRUD operation with WEB API in .NET WebForm Application
+
+Kendo UI has a nice a widget 'Kendo Grid' which displays data in a tabular format and offers rich support for interacting with data; 
+including paging, sorting, grouping, and selection.Here in this tip mainly we will 
+concentrate upon the kendo server paging and how to create a new record,Retrieve records,update an existing record and delete an existing record(in short CRUD operation) with Web Api
+
+Now we will need a class with some properties to do the CRUD operation in Kendo Grid.
+
+Lets our class is Employee with the following properties.
+We will retrieve Employee information from the database and show in our Kendo Grid and then we will perform update,delete operation on the retrieves row.Moreover we can create
+a new Employee record.
+
+Model Class:
+----------------------------------------------------------------------------------------------------------------------------------
+ public class Employee
+    {
+        public int Id { get; set; }
+        public string FirstName { get; set; }
+		public string LastName {get;set;}
+        public string Address { get; set; }
+        public string Contact { get; set; }
+    } 
+
+	
+Configuarion:
+------------------------------------------------------------------------------------------------------------------------------------
+The next job is to add a controller(Web Api controller)named EmployeeController class which inherits from the ApiController class
+But  before to that we need to do the following two step
+
+step-1
+------
+In order to make our Web Api to responde to different Http request we have to add the following class.
+
+	/// <summary>
+    /// Class for setting Web API paths
+    /// </summary>
+    internal static class WebApiConfig
+    {
+        /// <summary>
+        /// Register Web API paths
+        /// </summary>
+        /// <param name="config">Configuration object for HTTP</param>
+        internal static void Register(HttpConfiguration config)
+        {
+		// Here WebApi :-- This my folder name in the application where I have put my EmployeeController class
+		
+            // Add GET path for WebApi
+            config.Routes.MapHttpRoute(
+                name: "ApiGetAll",
+                routeTemplate: "WebApi/{controller}/{methodName}/{skip}/{take}/{page}/{pageSize}"
+            );
+
+            // Add Delete path for WebApi
+            config.Routes.MapHttpRoute(
+                name: "ApiDelete",
+                routeTemplate: "WebApi/{controller}/{methodName}/{id}"
+            );
+
+            // Add Insert path for WebApi
+            config.Routes.MapHttpRoute(
+                name: "ApiInsert",
+                routeTemplate: "WebApi/{controller}/{methodName}/{classobject}"
+            );
+
+            // Add Update path for WebApi
+            config.Routes.MapHttpRoute(
+                name: "ApiUpdate",
+                routeTemplate: "WebApi/{controller}/{methodName}/{id}/{classobject}"
+            );
+
+            // Add default path for WebApi
+            config.Routes.MapHttpRoute(
+                name: "DefaultApi",
+                routeTemplate: "WebAPI/{controller}/{id}",
+                defaults: new { id = RouteParameter.Optional }
+            );
+        }
+step-2
+------
+ This above class need to be registered at Application_Start event of Global.asax.cs file.
+ 
+       void Application_Start(object sender, EventArgs e)
+        {
+            // Configure WebApi
+            WebApiConfig.Register(GlobalConfiguration.Configuration);
+		}
+
+After doing these two steps we cn add our EmployeeCointroller to a folder name 'WebApi' inside our application.
+
+Handle CRUD Operations On The Server
+-----------------------------------------------------------------------------------------------------------------------
+Now we are done with the configuration and we will add our insert,update,delete and Retrieve code in our Web Api Controller.
+
+The EmployeesController Get method now looks a bit different. 
+You will notice that it’s become quite slim and consists mostly of comments by now
+
+		<summary>
+        /// GET api/EmployeeController
+        /// This method retrieves the employee deatils
+        /// </summary>
+        /// <param name="skip">skip</param>
+        /// <param name="take">take</param>
+        /// <param name="page">page</param>
+        /// <param name="pageSize">pageSize</param>
+        /// <returns>It returns the list of employess with the specified number of page size.</returns>
+public List<Employee> GetEmployeeDetails((int take, int skip, int page, int pageSize)
+
+					try
+					{
+	// get all of the records from the employees table in the
+    // database.  return them in a collection of user
+    // defined model objects for easy serialization. skip and then
+    // take the appropriate number of records for paging.
+    return (from emp in context.Employees
+                     select emp).OrderBy(e=>e.Id).Skip(skip).Take(take).ToList();
+
+					 }
+					 catch(Exception ex)
+					 {
+						// Logging error information into the table
+                ErrorLog.Error("Error in retrieving employess detail information.", ex);
+
+                // Throw error
+				// we can catch this error in the client side
+                throw new HttpResponseException(Request.CreateResponse(HttpStatusCode.InternalServerError, "Unable to retrieve employee info."));
+					 }
+}
+
+To enbale the server paging,we need to first know the total number of emplyess.For this reason we need another method for getting the total number of emplyess.
+		
+		/// <summary>
+        /// Method for getting the number of employees
+        /// </summary>
+        /// <returns>It returns the number of members as per the search parameters.</returns>
+        public int GetEmployeesCount()
+        {
+            try
+            {
+			return (from emp in context.Employees
+                     select emp).ToList().Count();
+			}
+			catch(Exception ex)
+			{
+									// Logging error information into the table
+                ErrorLog.Error("Error in retrieving number of employess.", ex);
+
+                // Throw error
+				// we can catch this error in the client side
+                throw new HttpResponseException(Request.CreateResponse(HttpStatusCode.InternalServerError, "Unable to get the number of employees."));
+			}
+		}
+		
+
+Now the Employee Post Method and it looks like below.
+Here we will pass the employee object with its properties value from the Kendo Grid client side.
+      
+	  /// <summary>
+        /// Create employee
+        /// </summary>
+        /// <param name="employee">employee object</param>
+        /// <returns>It will return the object after creation of the employee.</returns>
+        [HttpPost]
+        public CustomCreator PostEmployee(Employee employee)
+        {
+
+
+                // Validate employee with the meta data
+				// if you are using some data annotation
+                var valdateResult = creator.Validate();
+                if (!valdateResult.HasError)
+                {
+                    try
+                    {
+                        // Create employee
+                        context.EmployeeRepository.Create(employee);
+                        context.Save();
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log the error
+                        ErrorLog.Error("Error in inserting employee information.", ex);
+
+                        // Throw error 
+                        throw new HttpResponseException(Request.CreateResponse(HttpStatusCode.InternalServerError, "Error in inserting employee information."));
+                    }
+                }
+                else
+                {
+					
+                    var returnMessage = "Validation fails."
+					
+                    // Throw error 
+                    throw new HttpResponseException(Request.CreateResponse(HttpStatusCode.InternalServerError, returnMessage));
+                }
+            }
+
+            return employee;
+        }
+		
+Now the Employee Put Method and it looks like below.
+Here we will pass the employee id and employee object with its updated properties value from the Kendo Grid client side.
+
+		/// <summary>
+        /// Update employee
+        /// </summary
+		/// <param name="id">employee id</param>
+        /// <param name="employee">employee object</param>
+        /// <returns>It will return the object after creation of the employee.</returns>
+        [HttpPost]
+        public void PutEmployee(int id, Employee employee)
+        {
+                // Validate employee with the meta data
+				// if you are using some data annotation
+                var valdateResult = creator.Validate();
+                if (!valdateResult.HasError)
+                {
+                    try
+                    {
+                        // Create employee
+                        context.EmployeeRepository.Update(employee);
+                        context.Save();
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log the error
+                        ErrorLog.Error("Error in updating employee information.", ex);
+
+                        // Throw error 
+                        throw new HttpResponseException(Request.CreateResponse(HttpStatusCode.InternalServerError, "Error in updating employee information."));
+                    }
+                }
+                else
+                {
+					
+                    var returnMessage = "Validation fails."
+					
+                    // Throw error 
+                    throw new HttpResponseException(Request.CreateResponse(HttpStatusCode.InternalServerError, returnMessage));
+                }
+            }
+
+            return employee;
+        }
+Now the Employee Delete Method and it looks like below.
+Here we will pass the employee id to whom we want to delete from database.
+		
+		/// <summary>
+        /// Delete an existing employee
+        /// </summary>
+        /// <param name="id">employee id</param>
+        public void DeleteEmployee(int id)
+        {
+            try
+            {
+              
+                    // Get the page content
+                    var employee = context.EmployeeRepository.GetById(id);
+
+                    // Delete the emplyee
+                    context.EmployeeRepository.Delete(employee);
+                    context.Save();
+                }
+            }
+            catch (Exception ex)
+            {
+                //Log error
+                ErrorLog.Error("Error in deleting emplyee.", ex);
+
+                // Throw error 
+                throw new HttpResponseException(Request.CreateResponse(HttpStatusCode.InternalServerError, "Unable to delete the emplyee."));
+            }
+        
+		
+Handle CRUD Operations On The Client Side with Kendo Grid
+-----------------------------------------------------------------------------------------------------------------------		
+We have added our code in Web Api controller for CRUD operation.Now we have to write our client side code to managing the Employee information.
+I have added following code to my jquery document.ready function.
+
+	
+    if ($('#divEmployeeDetail').length) {
+
+        // Binding the Employee with a div which is declared in my aspx page(Employee.aspx page in this manner <div id="divEmployeeDetail"></div>)
+        $('#divEmployeeDetail').kendoGrid({
+
+            height: 140,
+            dataBound: function () {
+                // set kendo grid height
+				// here we can manage the height of the kendo grid
+                    $('#divEmployeeDetail').find(".k-grid-content").height("auto");
+                    $('#divEmployeeDetail').height("auto");
+            },
+			// This is the data source for the kendo grid
+			// Here we can manage the error if any arise at the server side
+			// We can implement server paing and also we can specify the model properties with schema
+            dataSource: {
+                type: "json",
+                serverPaging: true,
+                pageSize: 10,
+                error: function (e) {
+
+				// It will invoke if some error is thrown from the web api controller
+				// and we can catch the error message here
+                    var xhr = e[0];
+                    var statusCode = e[1];
+                    var errorThrown = e[2];
+					
+					// Cancel the changes whtever is being made if error arise
+				    $('#divEmployeeDetail').calcelChanges();
+                },
+                schema: {
+                  
+                    total: function (response) {
+                    
+                        // Do the Ajax call for getting numbers of records
+                        $.ajax({
+                            url: DOMAIN_URL + "WebApi/Employee/GetEmployeesCount",   // Here DOMAIN_URL is our site domain like http://www.test.com
+                            dataType: "json",									     // WebApi -- This is the folder name where my EmployeeController is present
+                            async: false,											 // Employee -- This is the Controller name
+                            type: "GET",
+                            contentType: "application/json; charset=UTF-8",
+                            success: function (result) {
+                                return result;
+                            }
+                        });
+                    },
+                    model: {   // The Model object will specify a client-side model structure that can describe the data in terms of type and validation rules.
+							   // Add a model to the schema declaration specifying that the id is mapped to the “Id” field from the database.
+							   // Then specify a fields object. Each object in the fields can be either a simple string, or an object that provides some more information about the model field.
+								//  In order to specify that fields are required, you will need to add a validation object					
+								// If some proprties accepts null the I am parsing to empty as in Kendo grid it will display as 'null'
+								// During our CRUD operation we will againg parse it to null if it is emty and send to controller
+                        id: "PkId",
+                        fields: {
+                            PkId: { type: "number", editable: false, nullable: false },
+                            FirstName: { type: "string", editable: true, nullable: false, validation: { required: true } },
+                            LastName: {
+                                type: "string", editable: true, nullable: true, validation: { required: false },
+                                parse: function (value) {
+                                    if (value == null) {
+                                        return '';
+                                    }
+                                    return value;
+                                }
+                            },
+                            Address: { type: "string", editable: true, nullable: false, validation: { required: true } },
+                            Contact: {
+                                type: "string", editable: true, nullable: true, validation: { required: false },
+                                parse: function (value) {
+                                    if (value == null) {
+                                        return '';
+                                    }
+                                    return value;
+                                }
+                           }
+                        }
+                    }
+                },
+                transport: {
+                    read: {
+                        url: DOMAIN_URL + "WebApi/Employee/GetEmployeeDetails", //specify the URL which data should return the records. This is the Read method of the controller
+                        dataType: "json",
+                        type: "GET", // Http Get for read employee information
+                        contentType: "application/json; charset=utf-8"
+                    },
+                    update: {
+                        url: function (options) {
+							// Here option is the model which contains all the employee properties
+                            return DOMAIN_URL + "WebApi/Employee/PutEmployee/" + options.Id + "/" + options;
+                        },
+                        contentType: "application/json; charset=utf-8", // tells the web api to serialize JSON
+                        type: "PUT",// Http request PUT for update employee information
+                        dataType: 'json'
+                    },
+                    create: {
+                        url: function (options) {
+
+                            return DOMAIN_URL + "WebApi/Employee/PostEmployee/" + options;
+                        },
+                        contentType: "application/json; charset=utf-8", // tells the web api to serialize JSON
+                        type: "POST", // Http request POST for create employee record
+                        dataType: 'json'
+                    },
+                    destroy: {
+                        url: function (options) {
+                            return DOMAIN_URL + "WebApi/Employee/DeleteEmployee/ + options.PkId;
+                        },
+                        contentType: "application/json; charset=utf-8", // tells the web api to serialize JSON
+                        type: "DELETE",
+                        dataType: 'json',
+                        async: false,
+                        complete: function () {
+							
+							// rebind the grid after delete opeartion complete to reflect the total number of recors left
+                            var grid = $("#divEmployeeDetail").data("kendoGrid");
+                            grid.dataSource.read();
+                        }
+                    },
+                    parameterMap: function (options, operation) {
+
+                        if (operation == "read") {
+
+                            return {
+                                take: options.take,
+                                skip: options.skip,
+                                page: options.page,
+                                pageSize: options.pageSize
+                            };
+                        }
+
+                        if (operation != "read") {
+							
+							// At previous we had parsed it to empty.So during operation if no value entered send these properties as null
+                            options.LastName = options.LastName == "" ? null : options.LastName;
+                            options.Contact = options.Contact == "" ? null : options.Contact;
+                            
+                            return JSON.stringify(options);
+                        }
+                    }
+                }
+            },
+            columns: [{ field: "Id", title: "Employee Id" },
+                       { field: "FirstName", title: "First Name" },
+                       { field: "LastName", title: "Last Name" },
+                       { field: "Address", title: "Address" },
+                       { field: "Contact", title: "Contact" },
+                       { command: ["edit", "destroy"], title: "Commands" } // These commands are for Update and delete operation
+            ],
+            editable: {
+                mode: "popup", // this is the mode of updating .you can specify inline or popup
+                update: true,
+                confirmation: "It will delete the employee.\nClick OK to delete." // This is the custom message that will appear as confirmation of you are going to delete some record.
+            },
+            pageable: {
+                pageSizes: [10, 20, 30, 40, 60, 80],
+                refresh: true,
+                previousNext: true,
+                info: true
+            },
+            toolbar: ["create"], // This command is used for creating new employee record
+            resizable: true,
+            edit: function (e) {
+					// In this event we can add custom code as it will invoke id edit option is choosen
+            }
+        });
+    
+	
+Wrap Up
+------------------------------------
+We have now learned how to do grid actions on the server (like paging,Crud opeartion), as well as how to handle grid editing and failed requests. 
+Thats it.Download the finished code for this module from GitHub.
+
+Happy Coding :)
+
